@@ -124,6 +124,75 @@ void _start(void* app_start __attribute__((unused)),
     "bl _c_start\n"
     "bkpt #255\n"
     );
+#elif defined(__ricsv)
+  // FIXME: Written blindly without RISC-V test hardware, but should be mostly correct.
+  //
+  // RISC-V does not specify a syscall calling convention for passing syscall number.
+  // Currently, this code does not pass it at all! So when Tock makes a decision this
+  // will need to be updated, but this is the majority of what will need to be here.
+
+  // Allocate stack and data. `brk` to stack_size + got_size + data_size +
+  // bss_size from start of memory. Also make sure that the stack starts on an
+  // 32 byte boundary (possibly conservative) per:
+  // https://github.com/riscv/riscv-elf-psabi-doc/pull/50/files
+
+  asm volatile (
+    // Compute the stack top
+    //
+    // struct hdr* myhdr = (struct hdr*)app_start;
+    // uint32_t stacktop = (((uint32_t)mem_start + myhdr->stack_size + 31) & 0xffffffe0);
+    "lw   a4, a0, 9\n"          // a4 = myhdr->stack_size
+    "addi a4, a4, 31\n"         // a4 = myhdr->stack_size + 31
+    "add  a4, a4, a1\n"         // a4 = mem_start + myhdr->stack_size + 31
+    "subi a5, zero, 32\n"       // a5 = 0xffffffe0
+    "and  a4, a4, a5\n"         // a4 = (mem_start + myhdr->stack_size + 7) & 0xffffffe0
+    //
+    // Compute the heap size
+    //
+    // uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
+    "lw   a5, a0, 2\n"          // a5 = myhdr->got_size
+    "lw   a6, a0, 5\n"          // a6 = myhdr->data_size
+    "lw   a7, a0, 7\n"          // a6 = myhdr->bss_size
+    "add  a5, a5, a6\n"         // a5 = got_size + data_size
+    "add  a5, a5, a7\n"         // a5 = got_size + data_size + bss_size
+    //
+    // Move registers we need to keep over to callee-saved locations
+    "add  s0, a0, zero\n"
+    "add  s1, a1, zero\n"
+    //
+    // Call `brk` to set to requested memory
+    //
+    // memop(0, stacktop + heap_size);
+    "add  a0, zero, zero\n"
+    "add  a1, a4, a5\n"
+    "ecall\n"                   // memop // FIXME: Tock Calling Convention?
+    //
+    // Debug support, tell the kernel the stack location
+    //
+    // memop(10, stacktop);
+    "addi a0, zero, 10\n"
+    "add  a1, a1, a4\n"
+    "ecall\n"                   // memop // FIXME: Tock Calling Convention?
+    //
+    // Debug support, tell the kernel the heap location
+    //
+    // memop(11, stacktop + heap_size);
+    "addi a0, zero, 11\n"
+    "add  a1, a4, a5\n"
+    "ecall\n"                   // memop // FIXME: Tock Calling Convention?
+    //
+    // Setup initial stack pointer for normal execution
+    "add  sp, a4, zero\n"
+    "mov  gp, a4, zero\n"       // FIXME: GOT Register?
+    //
+    // Call into the rest of startup.
+    // This should never return, if it does, trigger a breakpoint (which will
+    // promote to a HardFault in the absence of a debugger)
+    "add  a0, s0, zero\n"       // first arg is app_start
+    "add  a1, s1, zero\n"       // second arg is stacktop
+    "jal  _c_start\n"
+    "ebreak\n"
+    );
 #else
 #error Missing initial stack setup trampoline for current arch.
 #endif
