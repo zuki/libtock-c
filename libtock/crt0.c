@@ -93,6 +93,11 @@ void _start(void* app_start __attribute__((unused)),
     // Move registers we need to keep over to callee-saved locations
     "movs r6, r0\n"
     "movs r7, r1\n"
+
+    // Setup initial stack pointer for normal execution
+    "mov  sp, r4\n"
+    "mov  r9, sp\n"
+
     //
     // Call `brk` to set to requested memory
     //
@@ -115,9 +120,7 @@ void _start(void* app_start __attribute__((unused)),
     "add  r1, r4, r5\n"
     "svc 4\n"                   // memop
     //
-    // Setup initial stack pointer for normal execution
-    "mov  sp, r4\n"
-    "mov  r9, sp\n"
+
     //
     // Call into the rest of startup.
     // This should never return, if it does, trigger a breakpoint (which will
