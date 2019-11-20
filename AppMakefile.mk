@@ -118,25 +118,7 @@ OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRCS)))
 
-# Collect all desired built output.
-$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
-	$$(TRACE_LD)
-	$$(Q)$(2)$$(CC) $$(CFLAGS) $$(CPPFLAGS) $$(CPPFLAGS_$(1))\
-	    --entry=_start\
-	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
-	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
-	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
-	    -T $$(LAYOUT)\
-	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS_$(1)) -Wl,--end-group\
-	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
-	    -o $$@
 
-# NOTE: This rule creates an lst file for the elf as flashed on the board
-#       (i.e. at address 0x80000000). This is not likely what you want.
-$$(BUILDDIR)/$(1)/$(1).lst: $$(BUILDDIR)/$(1)/$(1).elf
-	$$(TRACE_LST)
-	$$(Q)$(2)$$(OBJDUMP) $$(OBJDUMP_FLAGS) $$< > $$@
 
 # checks compiled ELF files to ensure that all libraries and applications were
 # built with the correct flags in order to work on a Tock board
@@ -213,6 +195,8 @@ $$(BUILDDIR)/$(1)/$(1).userland_debug.elf: $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY
 	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
 	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
+	    -Xlinker --defsym=FLASH_ORIGIN=$$(FLASH_ORIGIN)\
+	    -Xlinker --defsym=RAM_ORIGIN=$$(RAM_ORIGIN)\
 	    -T $$(BUILDDIR)/$(1)/$(1).userland_debug.ld\
 	    -nostdlib\
 	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS_$(1)) -Wl,--end-group\
@@ -229,29 +213,74 @@ $$(BUILDDIR)/$(1)/$(1).userland_debug.lst: $$(BUILDDIR)/$(1)/$(1).userland_debug
 ############################################################################################
 endef
 
+
+# define LINKING_BUILD_RULES
+
+# # Collect all desired built output.
+# $$(BUILDDIR)/$(1)/$(1).$(3).$(4).elf: $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
+# 	$$(TRACE_LD)
+# 	$$(Q)$(2)$$(CC) $$(CFLAGS) $$(CPPFLAGS) $$(CPPFLAGS_$(1))\
+# 	    --entry=_start\
+# 	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
+# 	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
+# 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
+# 	    -Xlinker --defsym=FLASH_ORIGIN=$(3)\
+# 	    -Xlinker --defsym=RAM_ORIGIN=$(4)\
+# 	    -T $$(LAYOUT)\
+# 	    -nostdlib\
+# 	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS_$(1)) -Wl,--end-group\
+# 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
+# 	    -o $$@
+
+# # NOTE: This rule creates an lst file for the elf as flashed on the board
+# #       (i.e. at address 0x80000000). This is not likely what you want.
+# $$(BUILDDIR)/$(1)/$(1).$(3).$(4).lst: $$(BUILDDIR)/$(1)/$(1).$(3).$(4).elf
+# 	$$(TRACE_LST)
+# 	$$(Q)$(2)$$(OBJDUMP) $$(OBJDUMP_FLAGS) $$< > $$@
+
+# endef
+
+
 ARCH_FN = $(firstword $(subst |, ,$1))
 TOOLCHAIN_FN = $(word 2,$(subst |, ,$1))
 
+FLASH_ORIGIN=0x4043002c
+RAM_ORIGIN=0x80004000
+LOCATIONS=0x40430100|0x80004000 0x40432100|0x80004000
 
 # To see the generated rules, run:
 # $(info $(foreach platform, $(TOCK_ARCHS), $(call BUILD_RULES,$(call ARCH_FN,$(platform)),$(call TOOLCHAIN_FN,$(platform)))))
 # Actually generate the rules for each architecture
 $(foreach platform, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(call ARCH_FN,$(platform)),$(call TOOLCHAIN_FN,$(platform)))))
 
+# $(info $(foreach platform, $(TOCK_ARCHS), $(foreach location, $(LOCATIONS), $(call LINKING_BUILD_RULES,$(call ARCH_FN,$(platform)),$(call TOOLCHAIN_FN,$(platform)),$(call ARCH_FN,$(location)),$(call TOOLCHAIN_FN,$(location))))))
+$(foreach platform, $(TOCK_ARCHS), $(foreach location, $(LOCATIONS), $(eval $(call LINKING_BUILD_RULES,$(call ARCH_FN,$(platform)),$(call TOOLCHAIN_FN,$(platform)),$(call ARCH_FN,$(location)),$(call TOOLCHAIN_FN,$(location))))))
 
 
 
 # TAB file generation. Used for Tockloader
-$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach platform, $(TOCK_ARCHS), $(BUILDDIR)/$(call ARCH_FN,$(platform))/$(call ARCH_FN,$(platform)).elf)
+$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach platform, $(TOCK_ARCHS), $(foreach location, $(LOCATIONS), $(BUILDDIR)/$(call ARCH_FN,$(platform))/$(call ARCH_FN,$(platform)).$(call ARCH_FN,$(location)).$(call TOOLCHAIN_FN,$(location)).elf))
 	$(Q)$(ELF2TAB) $(ELF2TAB_ARGS) -o $@ $^
 
 
+define newline
+
+
+endef
+
+# $(info $(shell ./myrules.py))
+k = $(shell ./myrules.py "$(TOCK_ARCHS)")
+# k = $(shell ./myrules.py rv32imac|riscv64-unknown-elf)
+# k = $(shell ./myrules.py rv32imac riscv64-unknown-elf)
+substituted = $(subst NEWLINE,$(newline),$(k))
+$(eval $(substituted))
+$(info $(substituted))
 
 # Rules for building apps
 .PHONY:	all
 all:	$(BUILDDIR)/$(PACKAGE_NAME).tab size
 
-# The size target accumlates dependencies in the platform build rule creation
+# The size target accumulates dependencies in the platform build rule creation
 .PHONY: size
 
 .PHONY: debug
