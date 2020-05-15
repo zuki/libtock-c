@@ -39,6 +39,7 @@ ifndef ELF2TAB_EXISTS
 endif
 ELF2TAB_ARGS += -n $(PACKAGE_NAME)
 ELF2TAB_ARGS += --stack $(STACK_SIZE) --app-heap $(APP_HEAP_SIZE) --kernel-heap $(KERNEL_HEAP_SIZE)
+ELF2TAB_ARGS += --fixed-address-ram 0x80002400 --fixed-address-flash 0x20040040
 
 # Special extra flag for RISC-V since it does not have PIC support.
 ELF2TAB_ARGS += --protected-region-size=64
