@@ -45,17 +45,17 @@ SECTIONS {
         /* Offset of GOT symbols in flash */
         LONG(LOADADDR(.got) - _beginning);
         /* Offset of GOT section in memory */
-        LONG(_got);
+        LONG(_got - ORIGIN(SRAM));
         /* Size of GOT section */
         LONG(SIZEOF(.got));
         /* Offset of data symbols in flash */
         LONG(LOADADDR(.data) - _beginning);
         /* Offset of data section in memory */
-        LONG(_data);
+        LONG(_data - ORIGIN(SRAM));
         /* Size of data section */
         LONG(SIZEOF(.data));
         /* Offset of BSS section in memory */
-        LONG(_bss);
+        LONG(_bss - ORIGIN(SRAM));
         /* Size of BSS section */
         LONG(SIZEOF(.bss));
         /* First address offset after program flash, where elf2tab places
