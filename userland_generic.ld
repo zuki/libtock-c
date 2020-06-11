@@ -45,17 +45,17 @@ SECTIONS {
         /* Offset of GOT symbols in flash */
         LONG(LOADADDR(.got) - _beginning);
         /* Offset of GOT section in memory */
-        LONG(_got - ORIGIN(SRAM));
+        LONG(_got - ORIGIN(SRAM) - 0x800);
         /* Size of GOT section */
         LONG(SIZEOF(.got));
         /* Offset of data symbols in flash */
         LONG(LOADADDR(.data) - _beginning);
         /* Offset of data section in memory */
-        LONG(_data - ORIGIN(SRAM));
+        LONG(_data - ORIGIN(SRAM) - 0x800);
         /* Size of data section */
         LONG(SIZEOF(.data));
         /* Offset of BSS section in memory */
-        LONG(_bss - ORIGIN(SRAM));
+        LONG(_bss - ORIGIN(SRAM) - 0x800);
         /* Size of BSS section */
         LONG(SIZEOF(.bss));
         /* First address offset after program flash, where elf2tab places
@@ -88,6 +88,19 @@ SECTIONS {
         *(.ARM.extab*)
         . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
+
+    /* Need to reserve room for the stack in the linker file. This makes the
+     * _got addresses used by the compiler match what they will be when the
+     * app is loaded into memory.
+     */
+    .stack :
+    {
+        _stack = .;
+        . = ALIGN(4); /* Make sure we're word-aligned here */
+        . = _stack + 0x800;
+        . = ALIGN(4);
+    } > SRAM
+
 
     /* Global Offset Table */
     .got :
