@@ -23,7 +23,7 @@ static void root_insert(alarm_t* alarm) {
   alarm_t **cur = &root;
   alarm_t *prev = NULL;
   while (*cur != NULL) {
-    if (cmp_exp(alarm->t0, alarm->expiration, (*cur)->expiration) < 0) {
+    if (cmp_exp(alarm->t0, alarm->t0 + alarm->dt, (*cur)->t0 + (*cur)->dt) < 0) {
       // insert before
       alarm_t *tmp = *cur;
       *cur        = alarm;
@@ -60,30 +60,33 @@ static alarm_t* root_peek(void) {
   return root;
 }
 
-static void callback( __attribute__ ((unused)) int unused0,
-                      __attribute__ ((unused)) int unused1,
+static void callback(uint32_t now,
+                     uint32_t expiration,
                       __attribute__ ((unused)) int unused2,
                       __attribute__ ((unused)) void* ud) {
   for (alarm_t* alarm = root_peek(); alarm != NULL; alarm = root_peek()) {
-    uint32_t now = alarm_read();
-    // has the alarm not expired yet? (distance from `now` has to be larger or
-    // equal to distance from current clock value.
-    if (alarm->expiration - alarm->t0 > now - alarm->t0) {
-      alarm_internal_set(alarm->expiration);
+    uint32_t real_now = alarm_read();
+    uint32_t end = alarm->t0 + alarm->dt;
+    // The alarm has not expired if now is not in the range of
+    // [t0, t0 + dt). It is in that range if 
+    // now - t0 < now - (t0 + dt).    
+    if (real_now - alarm->t0 < real_now - end) {
+      // Not expired
+      alarm_internal_set(alarm->t0, alarm->dt);
       break;
-    } else {
+    } else { // expired
       root_pop();
 
       if (alarm->callback) {
-        tock_enqueue(alarm->callback, now, alarm->expiration, 0, alarm->ud);
+        tock_enqueue(alarm->callback, now, expiration, 0, alarm->ud);
       }
     }
   }
 }
 
-void alarm_at(uint32_t expiration, subscribe_cb cb, void* ud, alarm_t* alarm) {
-  alarm->t0         = alarm_read();
-  alarm->expiration = expiration;
+void alarm_dt(uint32_t reference, uint32_t dt, subscribe_cb cb, void* ud, alarm_t* alarm) {
+  alarm->t0         = reference;
+  alarm->dt         = dt;
   alarm->callback   = cb;
   alarm->ud         = ud;
   alarm->prev       = NULL;
@@ -97,7 +100,7 @@ void alarm_at(uint32_t expiration, subscribe_cb cb, void* ud, alarm_t* alarm) {
 
   if (root_peek() == alarm) {
     alarm_internal_subscribe((subscribe_cb*)callback, NULL);
-    alarm_internal_set(alarm->expiration);
+    alarm_internal_set(alarm->t0, alarm->dt);
   }
 }
 
@@ -112,7 +115,7 @@ void alarm_cancel(alarm_t* alarm) {
   if (root == alarm) {
     root = alarm->next;
     if (root != NULL) {
-      alarm_internal_set(root->expiration);
+      alarm_internal_set(root->t0, root->dt);
     }
   }
 
@@ -122,7 +125,7 @@ void alarm_cancel(alarm_t* alarm) {
 }
 
 uint32_t alarm_read(void) {
-  return (uint32_t) command(DRIVER_NUM_ALARM, 2, 0, 0);
+  return (uint32_t) command(DRIVER_NUM_ALARMDT, 2, 0, 0);
 }
 
 // Timer implementation
@@ -131,21 +134,18 @@ void timer_in(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t *timer) {
   uint32_t frequency  = alarm_internal_frequency();
   uint32_t interval   = (ms / 1000) * frequency + (ms % 1000) * (frequency / 1000);
   uint32_t now        = alarm_read();
-  uint32_t expiration = now + interval;
-  alarm_at(expiration, cb, ud, &timer->alarm);
+  alarm_dt(now, interval, cb, ud, &timer->alarm);
 }
 
 static void repeating_cb( uint32_t now,
-                          __attribute__ ((unused)) int unused1,
+                          uint32_t expiration,
                           __attribute__ ((unused)) int unused2,
                           void* ud) {
   tock_timer_t* repeating = (tock_timer_t*)ud;
   uint32_t interval       = repeating->interval;
-  uint32_t expiration     = now + interval;
-  uint32_t cur_exp        = repeating->alarm.expiration;
-  alarm_at(expiration, (subscribe_cb*)repeating_cb,
+  alarm_dt(now, interval, (subscribe_cb*)repeating_cb,
            (void*)repeating, &repeating->alarm);
-  repeating->cb(now, cur_exp, 0, repeating->ud);
+  repeating->cb(now, expiration, 0, repeating->ud);
 }
 
 void timer_every(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t* repeating) {
@@ -157,9 +157,7 @@ void timer_every(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t* repeating
   repeating->ud       = ud;
 
   uint32_t now        = alarm_read();
-  uint32_t expiration = now + interval;
-
-  alarm_at(expiration, (subscribe_cb*)repeating_cb,
+  alarm_dt(now, interval, (subscribe_cb*)repeating_cb,
            (void*)repeating, &repeating->alarm);
 }
 

@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_ALARM 0x0
+#define DRIVER_NUM_ALARMDT 0x00008
 
 /*
  * Sets the callback for timers
@@ -25,7 +25,7 @@ int alarm_internal_subscribe(subscribe_cb cb, void *userdata);
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int alarm_internal_set(uint32_t tics);
+int alarm_internal_set(uint32_t reference, uint32_t dt);
 
 
 /*
