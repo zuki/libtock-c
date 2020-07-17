@@ -64,6 +64,10 @@ static void callback(uint32_t now,
                      uint32_t expiration,
                       __attribute__ ((unused)) int unused2,
                       __attribute__ ((unused)) void* ud) {
+  uint32_t t0;
+  uint32_t dt;
+  bool set = false;
+  printf("callback\n");
   for (alarm_t* alarm = root_peek(); alarm != NULL; alarm = root_peek()) {
     uint32_t real_now = alarm_read();
     uint32_t end = alarm->t0 + alarm->dt;
@@ -72,7 +76,9 @@ static void callback(uint32_t now,
     // now - t0 < now - (t0 + dt).    
     if (real_now - alarm->t0 < real_now - end) {
       // Not expired
-      alarm_internal_set(alarm->t0, alarm->dt);
+      set = true;
+      t0 = alarm->t0;
+      dt = alarm->dt;
       break;
     } else { // expired
       root_pop();
@@ -81,6 +87,10 @@ static void callback(uint32_t now,
         tock_enqueue(alarm->callback, now, expiration, 0, alarm->ud);
       }
     }
+  }
+  if (set) {
+    printf("setting\n");
+    alarm_internal_set(t0, dt);
   }
 }
 
@@ -125,7 +135,7 @@ void alarm_cancel(alarm_t* alarm) {
 }
 
 uint32_t alarm_read(void) {
-  return (uint32_t) command(DRIVER_NUM_ALARMDT, 2, 0, 0);
+  return (uint32_t) command(DRIVER_NUM_ALARM, 2, 0, 0);
 }
 
 // Timer implementation
