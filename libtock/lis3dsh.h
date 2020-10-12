@@ -52,7 +52,6 @@ bool lis3dsh_set_power_mode(unsigned char mode);
 bool lis3dsh_set_scale_and_filter(unsigned char scale, unsigned char filter);
 int lis3dsh_read_xyz(LIS3DSHXYZ *xyz);
 int lis3dsh_read_temperature(int *temperature);
-int lis3dsh_read_value(unsigned char offset, int *value);
 
 #ifdef __cplusplus
 }

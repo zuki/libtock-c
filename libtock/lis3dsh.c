@@ -124,22 +124,3 @@ int lis3dsh_read_temperature(int *temperature) {
   }
   return evalue;
 }
-
-int lis3dsh_read_value(unsigned char offset, int *value) {
-  int evalue;
-  LIS3DSHResponse response;
-  response.done = false;
-
-  if (offset > 5) offset = 0;
-
-  // subscribe
-  lis3dsh_subscribe(command_callback_yield, &response);
-  evalue = lis3dshc_command(6, offset, 0);
-  if (evalue == TOCK_SUCCESS) {
-    yield_for(&(response.done));
-    if (value != NULL) {
-      *value = response.data1;
-    }
-  }
-  return evalue;
-}

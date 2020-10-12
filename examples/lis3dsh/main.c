@@ -44,7 +44,7 @@ int main(void) {
       printf("LIS3DSH device set power mode failed\r\n");
     }
   } else {
-    printf("LIS3DSH sensor driver not present: id = %d\r\n", id);
+    printf("LIS3DSH sensor driver not present: id = %X\r\n", id);
   }
   return 0;
 }
