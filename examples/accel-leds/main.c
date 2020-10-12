@@ -5,26 +5,33 @@
 #include <ninedof.h>
 
 int main(void) {
-  printf("[App] Accelerometer -> LEDs\n");
+  printf("[App] Accelerometer -> LEDs\r\n");
 
   while (1) {
-    int x, y, z;
+    int x, y, z; // 単位はmg: 1G = 1000
     ninedof_read_acceleration_sync(&x, &y, &z);
 
-    // abs()
-    if (x < 0) x *= -1;
-    if (y < 0) y *= -1;
-    if (z < 0) z *= -1;
-
-    // Set LEDs based on acceleration.
-    int largest = INT_MIN;
-    if (x > largest) largest = x;
-    if (y > largest) largest = y;
-    if (z > largest) largest = z;
-
-    if (x == largest) led_on(0); else led_off(0);
-    if (y == largest) led_on(1); else led_off(1);
-    if (z == largest) led_on(2); else led_off(2);
+    // LED: [Green, Orange, Red, Blue]
+    if (x > 100) {
+      led_off(0);
+      led_on(2);
+    } else if( x < -100) {
+      led_on(0);
+      led_off(2);
+    } else {
+      led_off(0);
+      led_off(2);
+    }
+    if (y > 100) {
+      led_on(1);
+      led_off(3);
+    } else if (y < -100) {
+      led_off(1);
+      led_on(3);
+    } else {
+      led_off(1);
+      led_off(3);
+    }
   }
 
   return 0;
